@@ -1,0 +1,103 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <title>WebIOPi | Green House Control</title>
+        <script type="text/javascript" src="/webiopi.js"></script>
+        <script type="text/javascript">
+            var tmp;
+            var hum;
+
+            webiopi().ready(init);
+
+            function init() {
+                // Create a "Light" labeled button for GPIO 17
+                var button = webiopi().createGPIOButton(17, "Light");
+
+                // Append button to HTML element with ID="controls" using jQuery
+                $("#controls").append(button);
+
+                // Refresh GPIO buttons
+                // pass true to refresh repeatedly of false to refresh once
+                webiopi().refreshGPIO(true);
+
+                tmp = new Temperature("dht0");
+                hum = new Humidity("dht0");
+                setInterval(updateUI, 2000);
+            }
+
+            function updateUI() {
+                // call Temperature.getCelsius REST API
+                // result is asynchronously displayed using the callback
+                tmp.getCelsius(temperatureCallback);
+
+                hum.getHumidityPercent(humidityCallback);
+                
+                // call getMode macro
+                webiopi().callMacro("getMode", [], modeCallback);
+            }       
+
+            // callback function used to display the temperature
+            function temperatureCallback(sensorName, data) {
+                // jQuery functions
+                $("#gh_temperature").text("Temp: " + data + "°C");
+            }
+
+            // callback function used to display the temperature
+            function humidityCallback(sensorName, data) {
+                // jQuery functions
+                $("#gh_humidity").text("Humi: " + data + " %");
+            }
+        
+            // callback function used to display current heater mode
+            function modeCallback(macroName, args, data) {
+                $("#gh_mode").text(data);
+            }
+
+            // called by the mode button
+            function toggleMode() {
+                if ($("#gh_mode").text() == "auto") {
+                    webiopi().callMacro("setMode", "manual", modeCallback);
+                }
+                else if ($("#gh_mode").text() == "manual") {
+                    webiopi().callMacro("setMode", "auto", modeCallback);
+                }
+            }
+
+        </script>
+        <style type="text/css">
+                button {
+                        display: block;
+                        margin: 5px 5px 5px 5px;
+                        width: 160px;
+                        height: 45px;
+                        font-size: 24pt;
+                        font-weight: bold;
+                        color: white;
+                }
+                button.LOW {
+                        background-color: Black;
+                }
+                button.HIGH {
+                        background-color: Blue;
+                }
+
+                #gh_temperature, #gh_humidity {
+                        margin: 5px 5px 5px 5px;
+                        width: 260px;
+                        height: 45px;
+                        font-size: 24pt;
+                        font-weight: bold;
+                        color: white;
+                        text-align: center;
+                        background-color: Blue;
+                }
+        </style>
+</head>
+<body>
+        <div id="controls" align="center"></div>
+        <center><button id="gh_mode" onclick="toggleMode()"></button></center>
+        <div id="gh_temperature" align="center"></div>
+        <div id="gh_humidity" align="center"></div>
+</body>
+</html>
