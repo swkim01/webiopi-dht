@@ -59,7 +59,7 @@ curl -X POST -u webiopo:raspberry localhost:8000/GPIO/17/value/0
 #### Custom Web and Python Script Example
 Our example consists of a html and python script file. The html includes web content to monitor the DHT sensor and control the LED. The script code is to get/switch operation mode to Auto or Manual. On Auto mode, the LED will turn on and off automatically according to temperature value of the DHT22 sensor.
 
-1. Configure /etc/webiopi/config file to set html and python script file correctly.
+1. Modify /etc/webiopi/config file to set html and python script file correctly.
 ```
 ...
 [SCRIPTS]
