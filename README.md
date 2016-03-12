@@ -3,14 +3,14 @@ DHT sensor module for WebIOPi
 
 #### Installation
 1. Download and decompress source code on [webiopi homepage](http://webiopi.trouch.com/)
-2. You have to install Adafruit Python DHT module.
+* You have to install Adafruit Python DHT module.
 ```shell
 sudo apt-get install build-essential python-dev
 git clone https://github.com.adafruit/Adafruit_Python_DHT.git
 cd Adafruit_Python_DHT
 sudo python setup.py install
 ```
-3. Clone my repo onto your pi.
+* Clone my repo onto your pi.
 ```shell
 git clone https://github.com/swkim01/webiopi-dht.git
 ```
@@ -19,9 +19,9 @@ If you use RPi 2, you have to patch the souce as follows.
 cd [WebIOPi's source path]
 patch -p1 < [webiopi-dht path]/webiopi-0.7.1-rpi2.diff
 ```
-4. copy __init__.py and dhtXX.py to [WebIOPi's source path]/python/webiopi/devices/sensor directory.
+* copy __init__.py and dhtXX.py to [WebIOPi's source path]/python/webiopi/devices/sensor directory.
 
-5. Install and start WebIOPi
+* Install and start WebIOPi
 
 #### Test
 1. To test this module, connect a DHT22 sensor input to gpio port [18] and an LED to port [17] of pi.
