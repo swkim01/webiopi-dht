@@ -6,7 +6,7 @@ DHT sensor module for WebIOPi
 
 2.) You have to install Adafruit Python DHT module.
 ```shell
-sudo apt-get install build-essential pythn-dev
+sudo apt-get install build-essential python-dev
 git clone https://github.com.adafruit/Adafruit_Python_DHT.git
 cd Adafruit_Python_DHT
 sudo python setup.py install
