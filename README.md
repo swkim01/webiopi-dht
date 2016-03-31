@@ -23,7 +23,8 @@ patch -p1 < [webiopi-dht path]/webiopi-0.7.1-rpi2.diff
 
 4.) copy __init__.py and dhtXX.py to [WebIOPi's source path]/python/webiopi/devices/sensor directory.
 
-5.) Install and start WebIOPi
+5.) Install and start WebIOPi.
+
 Since the python dht module operates on python 2.7, you have to install WebIOPi with python 2.7 also.
 ```shell
 sed -i 's/ python3//' setup.sh
