@@ -34,7 +34,7 @@ sudo ./setup.sh
 sudo /etc/init.d/webiopi start
 ```
 
-NOTE: Python 2.7.9 has bug of imp.find_module() method that can't find modules in egg module file, thus webiopi can't load any device module.
+NOTE: Python 2.7.9 has bug of imp.find_module() method that can't find modules in egg module file(see [here](https://github.com/mbedmicro/mbed/issues/1077)), thus webiopi can't load any device module.
 
 I found two methods to solve this problem. One simplest way is to unzip that file.
 ```shell
