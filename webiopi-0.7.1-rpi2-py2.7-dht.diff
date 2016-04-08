@@ -1,0 +1,301 @@
+diff -uNr WebIOPi-0.7.1/htdocs/webiopi.js WebIOPi-0.7.1-new/htdocs/webiopi.js
+--- WebIOPi-0.7.1/htdocs/webiopi.js	2014-02-24 01:37:07.000000000 +0900
++++ WebIOPi-0.7.1-new/htdocs/webiopi.js	2016-04-02 11:52:10.477313815 +0900
+@@ -73,7 +73,7 @@
+ 	this.readyCallback = null;
+ 	this.context = "/";
+ 	this.GPIO = Array(54);
+-	this.PINS = Array(27);
++	this.PINS = Array(41);
+ 
+ 	this.TYPE = {
+ 			DNC: {value: 0, style: "DNC", label: "--"},
+@@ -577,7 +577,7 @@
+ RPiHeader.prototype.createTable = function (containerId) {
+ 	var table = $("<table>");
+ 	table.attr("id", "RPiHeader")
+-	for (var pin=1; pin<=26; pin++) {
++	for (var pin=1; pin<=40; pin++) {
+ 		var line = 	$('<tr>');
+ 		line.append(this.getFunctionCell(pin))
+ 		line.append(this.getDescriptionCell(pin, "right"))
+diff -uNr WebIOPi-0.7.1/python/native/bridge.c WebIOPi-0.7.1-new/python/native/bridge.c
+--- WebIOPi-0.7.1/python/native/bridge.c	2013-03-17 21:56:40.000000000 +0900
++++ WebIOPi-0.7.1-new/python/native/bridge.c	2016-04-07 18:06:01.211491561 +0900
+@@ -604,7 +604,7 @@
+ #if PY_MAJOR_VERSION > 2
+ static struct PyModuleDef python_module = {
+ 	PyModuleDef_HEAD_INIT,
+-	"_webiopi.GPIO", /* name of module */
++	"webiopi.GPIO", /* name of module */
+ 	NULL,       /* module documentation, may be NULL */
+ 	-1,         /* size of per-interpreter state of the module,
+ 				  or -1 if the module keeps state in global variables. */
+@@ -625,20 +625,20 @@
+ 	if ((module = PyModule_Create(&python_module)) == NULL)
+ 		goto exit;
+ #else
+-	if ((module = Py_InitModule("_webiopi.GPIO", python_methods)) == NULL)
++	if ((module = Py_InitModule("webiopi.GPIO", python_methods)) == NULL)
+ 		goto exit;
+ #endif
+ 
+-	_SetupException = PyErr_NewException("_webiopi.GPIO.SetupException", NULL, NULL);
++	_SetupException = PyErr_NewException("webiopi.GPIO.SetupException", NULL, NULL);
+ 	PyModule_AddObject(module, "SetupException", _SetupException);
+ 
+-	_InvalidDirectionException = PyErr_NewException("_webiopi.GPIO.InvalidDirectionException", NULL, NULL);
++	_InvalidDirectionException = PyErr_NewException("webiopi.GPIO.InvalidDirectionException", NULL, NULL);
+ 	PyModule_AddObject(module, "InvalidDirectionException", _InvalidDirectionException);
+ 
+-	_InvalidChannelException = PyErr_NewException("_webiopi.GPIO.InvalidChannelException", NULL, NULL);
++	_InvalidChannelException = PyErr_NewException("webiopi.GPIO.InvalidChannelException", NULL, NULL);
+ 	PyModule_AddObject(module, "InvalidChannelException", _InvalidChannelException);
+ 
+-	_InvalidPullException = PyErr_NewException("_webiopi.GPIO.InvalidPullException", NULL, NULL);
++	_InvalidPullException = PyErr_NewException("webiopi.GPIO.InvalidPullException", NULL, NULL);
+ 	PyModule_AddObject(module, "InvalidPullException", _InvalidPullException);
+ 
+ 	_gpioCount = Py_BuildValue("i", GPIO_COUNT);
+diff -uNr WebIOPi-0.7.1/python/native/cpuinfo.c WebIOPi-0.7.1-new/python/native/cpuinfo.c
+--- WebIOPi-0.7.1/python/native/cpuinfo.c	2012-10-29 06:26:10.000000000 +0900
++++ WebIOPi-0.7.1-new/python/native/cpuinfo.c	2016-04-02 11:52:10.477313815 +0900
+@@ -37,7 +37,7 @@
+    while(!feof(fp)) {
+       fgets(buffer, sizeof(buffer) , fp);
+       sscanf(buffer, "Hardware	: %s", hardware);
+-      if (strcmp(hardware, "BCM2708") == 0)
++      if (strcmp(hardware, "BCM2708") == 0 || strcmp(hardware, "BCM2709") == 0)
+          rpi_found = 1;
+       sscanf(buffer, "Revision	: %s", revision);
+    }
+diff -uNr WebIOPi-0.7.1/python/native/gpio.c WebIOPi-0.7.1-new/python/native/gpio.c
+--- WebIOPi-0.7.1/python/native/gpio.c	2013-02-04 07:04:18.000000000 +0900
++++ WebIOPi-0.7.1-new/python/native/gpio.c	2016-04-02 11:52:10.487313783 +0900
+@@ -20,6 +20,7 @@
+ SOFTWARE.
+ */
+ 
++#include <stdio.h>
+ #include <stdint.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -29,8 +30,8 @@
+ #include <pthread.h>
+ #include "gpio.h"
+ 
+-#define BCM2708_PERI_BASE   0x20000000
+-#define GPIO_BASE           (BCM2708_PERI_BASE + 0x200000)
++#define BCM2708_PERI_BASE_DEFAULT   0x20000000
++#define GPIO_BASE_OFFSET            0x200000
+ #define FSEL_OFFSET         0   // 0x0000
+ #define SET_OFFSET          7   // 0x001c / 4
+ #define CLR_OFFSET          10  // 0x0028 / 4
+@@ -71,6 +72,21 @@
+ {
+     int mem_fd;
+     uint8_t *gpio_mem;
++    uint32_t peri_base = BCM2708_PERI_BASE_DEFAULT;
++    uint32_t gpio_base;
++    unsigned char buf[4];
++    FILE *fp;
++
++    // get peri base from device tree
++    if ((fp = fopen("/proc/device-tree/soc/ranges", "rb")) != NULL) {
++        fseek(fp, 4, SEEK_SET);
++        if (fread(buf, 1, sizeof buf, fp) == sizeof buf) {
++            peri_base = buf[0] << 24 | buf[1] << 16 | buf[2] << 8 | buf[3] << 0;
++        }
++        fclose(fp);
++    }
++
++    gpio_base = peri_base + GPIO_BASE_OFFSET;
+ 
+     if ((mem_fd = open("/dev/mem", O_RDWR|O_SYNC) ) < 0)
+     {
+@@ -83,7 +99,7 @@
+     if ((uint32_t)gpio_mem % PAGE_SIZE)
+         gpio_mem += PAGE_SIZE - ((uint32_t)gpio_mem % PAGE_SIZE);
+ 
+-    gpio_map = (uint32_t *)mmap( (caddr_t)gpio_mem, BLOCK_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, mem_fd, GPIO_BASE);
++    gpio_map = (uint32_t *)mmap( (caddr_t)gpio_mem, BLOCK_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, mem_fd, gpio_base);
+ 
+     if ((uint32_t)gpio_map < 0)
+         return SETUP_MMAP_FAIL;
+diff -uNr WebIOPi-0.7.1/python/setup.py WebIOPi-0.7.1-new/python/setup.py
+--- WebIOPi-0.7.1/python/setup.py	2015-02-05 05:21:44.000000000 +0900
++++ WebIOPi-0.7.1-new/python/setup.py	2016-04-07 19:19:38.856949458 +0900
+@@ -1,4 +1,4 @@
+-from setuptools import setup, Extension
++from distutils.core import setup, Extension
+ 
+ classifiers = ['Development Status :: 3 - Alpha',
+                'Operating System :: POSIX :: Linux',
+@@ -33,5 +33,5 @@
+                           "webiopi.devices.sensor",
+                           "webiopi.devices.shield"
+                           ],
+-      ext_modules      = [Extension('_webiopi.GPIO', ['native/bridge.c', 'native/gpio.c', 'native/cpuinfo.c'])],
++      ext_modules      = [Extension('webiopi.GPIO', ['native/bridge.c', 'native/gpio.c', 'native/cpuinfo.c'])],
+       )
+diff -uNr WebIOPi-0.7.1/python/webiopi/__init__.py WebIOPi-0.7.1-new/python/webiopi/__init__.py
+--- WebIOPi-0.7.1/python/webiopi/__init__.py	2014-01-29 08:13:34.000000000 +0900
++++ WebIOPi-0.7.1-new/python/webiopi/__init__.py	2016-04-07 18:03:22.331414560 +0900
+@@ -24,9 +24,8 @@
+ 
+ from webiopi.devices import bus as _bus
+ 
+-
+ try:
+-    import _webiopi.GPIO as GPIO
++    import webiopi.GPIO as GPIO
+ except:
+     pass
+ 
+diff -uNr WebIOPi-0.7.1/python/webiopi/devices/digital/gpio.py WebIOPi-0.7.1-new/python/webiopi/devices/digital/gpio.py
+--- WebIOPi-0.7.1/python/webiopi/devices/digital/gpio.py	2013-04-18 06:41:06.000000000 +0900
++++ WebIOPi-0.7.1-new/python/webiopi/devices/digital/gpio.py	2016-04-07 19:03:12.060353205 +0900
+@@ -17,7 +17,7 @@
+ from webiopi.devices.digital import GPIOPort
+ from webiopi.decorators.rest import request, response
+ try:
+-    import _webiopi.GPIO as GPIO
++    import webiopi.GPIO as GPIO
+ except:
+     pass
+ 
+diff -uNr WebIOPi-0.7.1/python/webiopi/devices/sensor/__init__.py WebIOPi-0.7.1-new/python/webiopi/devices/sensor/__init__.py
+--- WebIOPi-0.7.1/python/webiopi/devices/sensor/__init__.py	2014-02-22 06:50:48.000000000 +0900
++++ WebIOPi-0.7.1-new/python/webiopi/devices/sensor/__init__.py	2016-04-02 11:52:59.557155219 +0900
+@@ -193,4 +193,5 @@
+ DRIVERS["tslXXXX"] = ["TSL2561", "TSL2561CS", "TSL2561T", "TSL4531", "TSL45311", "TSL45313", "TSL45315", "TSL45317"]
+ DRIVERS["vcnl4000"] = ["VCNL4000"]
+ DRIVERS["hytXXX"] = ["HYT221"]
++DRIVERS["dhtXX"] = ["DHT11", "DHT22", "AM2302"]
+ 
+diff -uNr WebIOPi-0.7.1/python/webiopi/devices/sensor/dhtXX.py WebIOPi-0.7.1-new/python/webiopi/devices/sensor/dhtXX.py
+--- WebIOPi-0.7.1/python/webiopi/devices/sensor/dhtXX.py	1970-01-01 09:00:00.000000000 +0900
++++ WebIOPi-0.7.1-new/python/webiopi/devices/sensor/dhtXX.py	2016-04-02 11:52:59.557155219 +0900
+@@ -0,0 +1,52 @@
++from time import sleep
++from webiopi.utils.types import toint
++import Adafruit_DHT
++from webiopi.devices.sensor import Temperature,Humidity
++
++class DHT11(Temperature, Humidity):
++    VAL_RETRIES = 5
++    sensor = Adafruit_DHT.DHT11
++    pin = 4
++
++    def __init__(self, pin="4"):
++        self.pin = toint(pin)
++        pass
++
++    def __str__(self):
++        return "DHT11(pin=%02d)" % self.pin
++
++    def __family__(self):
++        return [Temperature.__family__(self), Humidity.__family__(self)]
++
++    def readRawData(self):
++        for i in range(self.VAL_RETRIES):
++            raw_h, raw_t = Adafruit_DHT.read_retry(self.sensor, self.pin)
++            if raw_h is not None and raw_t is not None:
++                return (raw_t, raw_h/100)
++
++        #Stale was never 0, so datas are not actual
++        raise Exception("DHT11(pin=%02d): data fetch timeout" % self.pin)
++
++    def __getCelsius__(self):
++        (raw_t, raw_h) = self.readRawData()
++        return raw_t
++
++    def __getFahrenheit__(self):
++        return self.Celsius2Fahrenheit()
++
++    def __getKelvin__(self):
++        return self.Celsius2Kelvin()
++
++    def __getHumidity__(self):
++        (raw_t, raw_h) = self.readRawData()
++        return raw_h
++
++class DHT22(DHT11):
++    def __init__(self, pin=4):
++        DHT11.__init__(self, pin)
++        self.sensor = Adafruit_DHT.DHT22
++
++class AM2302(DHT11):
++    def __init__(self, pin=4):
++        DHT11.__init__(self, pin)
++        self.sensor = Adafruit_DHT.AM2302
+diff -uNr WebIOPi-0.7.1/python/webiopi/protocols/coap.py WebIOPi-0.7.1-new/python/webiopi/protocols/coap.py
+--- WebIOPi-0.7.1/python/webiopi/protocols/coap.py	2014-02-01 00:45:33.000000000 +0900
++++ WebIOPi-0.7.1-new/python/webiopi/protocols/coap.py	2016-04-07 18:07:34.451535375 +0900
+@@ -29,7 +29,7 @@
+     from urlparse import urlparse
+ 
+ try :
+-    import _webiopi.GPIO as GPIO
++    import webiopi.GPIO as GPIO
+ except:
+     pass
+ 
+diff -uNr WebIOPi-0.7.1/python/webiopi/protocols/http.py WebIOPi-0.7.1-new/python/webiopi/protocols/http.py
+--- WebIOPi-0.7.1/python/webiopi/protocols/http.py	2014-02-22 07:31:18.000000000 +0900
++++ WebIOPi-0.7.1-new/python/webiopi/protocols/http.py	2016-04-07 18:02:08.271377631 +0900
+@@ -30,7 +30,7 @@
+     import BaseHTTPServer
+ 
+ try :
+-    import _webiopi.GPIO as GPIO
++    import webiopi.GPIO as GPIO
+ except:
+     pass
+ 
+diff -uNr WebIOPi-0.7.1/python/webiopi/protocols/rest.py WebIOPi-0.7.1-new/python/webiopi/protocols/rest.py
+--- WebIOPi-0.7.1/python/webiopi/protocols/rest.py	2013-04-18 06:41:06.000000000 +0900
++++ WebIOPi-0.7.1-new/python/webiopi/protocols/rest.py	2016-04-07 19:03:42.290606842 +0900
+@@ -21,7 +21,7 @@
+ from webiopi.devices.bus import BUSLIST
+ 
+ try:
+-    import _webiopi.GPIO as GPIO
++    import webiopi.GPIO as GPIO
+ except:
+     pass
+ 
+diff -uNr WebIOPi-0.7.1/python/webiopi/utils/version.py WebIOPi-0.7.1-new/python/webiopi/utils/version.py
+--- WebIOPi-0.7.1/python/webiopi/utils/version.py	2015-02-05 05:21:44.000000000 +0900
++++ WebIOPi-0.7.1-new/python/webiopi/utils/version.py	2016-04-02 11:52:10.487313783 +0900
+@@ -8,7 +8,8 @@
+ 
+ _MAPPING = [[], [], []]
+ _MAPPING[1] = ["V33", "V50", 0, "V50", 1, "GND", 4, 14, "GND", 15, 17, 18, 21, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7]
+-_MAPPING[2] = ["V33", "V50", 2, "V50", 3, "GND", 4, 14, "GND", 15, 17, 18, 27, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7]
++#_MAPPING[2] = ["V33", "V50", 2, "V50", 3, "GND", 4, 14, "GND", 15, 17, 18, 27, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7]
++_MAPPING[2] = ["V33", "V50", 2, "V50", 3, "GND", 4, 14, "GND", 15, 17, 18, 27, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7, "DNC", "DNC", 5, "GND", 6, 12, 13, "GND", 19, 16, 26, 20, "GND", 21]
+ 
+ 
+ try:
+diff -uNr WebIOPi-0.7.1/setup.sh WebIOPi-0.7.1-new/setup.sh
+--- WebIOPi-0.7.1/setup.sh	2015-02-05 05:21:44.000000000 +0900
++++ WebIOPi-0.7.1-new/setup.sh	2016-04-02 11:54:49.986798379 +0900
+@@ -1,7 +1,7 @@
+ #!/bin/sh
+ # WebIOPi setup script
+ 
+-SEARCH="python python3"
++SEARCH="python"
+ FOUND=""
+ INSTALLED=""
+ 
+@@ -62,7 +62,7 @@
+ # Ensure WebIOPi is installed to continue
+ if [ -z "$INSTALLED" ]; then
+ 	if [ -z "$FOUND" ]; then
+-		echo "ERROR: WebIOPi cannot be installed - neither python or python3 found"
++		echo "ERROR: WebIOPi cannot be installed - python not found"
+ 		exit 1
+ 	else
+ 		echo "ERROR: WebIOPi cannot be installed - please check errors above"

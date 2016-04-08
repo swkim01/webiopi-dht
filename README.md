@@ -15,48 +15,25 @@ sudo python setup.py install
 ```shell
 git clone https://github.com/swkim01/webiopi-dht.git
 ```
-If you use RPi 2, you have to patch the souce as follows.
+If you use RPi 1 model B, you have to patch the souce as follows.
 ```shell
 cd [WebIOPi's source path]
-patch -p1 < [webiopi-dht path]/webiopi-0.7.1-rpi2.diff
+patch -p1 < [webiopi-dht path]/webiopi-0.7.1-rpi1-py2.7-dht.diff
 ```
-
-4.) copy __init__.py and dhtXX.py to [WebIOPi's source path]/python/webiopi/devices/sensor directory.
+Else If you use RPi 2 or 3, you have to patch the souce as follows.
 ```shell
-cp [webiopi-dht path]/python/webiopi/devices/sensor/* [WebIOPi's source path]/python/webiopi/devices/sensor
+cd [WebIOPi's source path]
+patch -p1 < [webiopi-dht path]/webiopi-0.7.1-rpi2-py2.7-dht.diff
 ```
-5.) Install and start WebIOPi.
-
-Since the python dht module operates on python 2.7, you have to install WebIOPi with python 2.7 also.
-```shell
-sed -i 's/ python3//' setup.sh
-sudo ./setup.sh
-sudo /etc/init.d/webiopi start
-```
-
-NOTE: Python 2.7.9 has bug of imp.find_module() method that can't find modules in egg module file(see [here](https://github.com/mbedmicro/mbed/issues/1077)), thus webiopi can't load any device module.
-
-I found two methods to solve this problem. One simplest way is to unzip that file.
-```shell
-cd /usr/local/lib/python2.7/dist-packages
-sudo unzip WebIOPi-0.7.1-py2.7-linux-armv7l.egg
-```
-The other way is to replace two lines in [WebIOPi's source path]/python/webiopi/devices/manager.py
-```shell
-(fp, pathname, stuff) = imp.find_module(package.__name__.replace(".", "/") + "/" + driver)
-module = imp.load_module(driver, fp, pathname, stuff)
-```
-to
-```shell
-import importlib
-module = importlib.import_module(package.__name__ + "." + driver)
-```
-Then, install webiopi python module again.
-```shell
-cd [WebIOPi's source path]/python
-sudo python setup.py install
-```
+NOTE: Python 2.7.9 has bug of not finding modules in egg module file(see [here](https://github.com/mbedmicro/mbed/issues/1077)) or directory starts with '\_', thus webiopi can't load any device module.
 Thank joelliot for his comment.
+
+4.) Install and start WebIOPi.
+
+```shell
+cd [WebIOPi's source path]
+sudo setup.sh
+```
 
 #### Test
 1.) To test this module, connect a DHT22 sensor input to gpio port [18] and an LED to port [17] of pi.
