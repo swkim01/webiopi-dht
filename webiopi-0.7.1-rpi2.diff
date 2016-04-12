@@ -1,6 +1,6 @@
-diff -uNr WebIOPi-0.7.1_orig/htdocs/webiopi.js WebIOPi-0.7.1/htdocs/webiopi.js
---- WebIOPi-0.7.1_orig/htdocs/webiopi.js	2014-02-24 01:37:07.000000000 +0900
-+++ WebIOPi-0.7.1/htdocs/webiopi.js	2015-05-08 15:58:02.202028340 +0900
+diff -uNr WebIOPi-0.7.1/htdocs/webiopi.js WebIOPi-0.7.1-new/htdocs/webiopi.js
+--- WebIOPi-0.7.1/htdocs/webiopi.js	2014-02-24 01:37:07.000000000 +0900
++++ WebIOPi-0.7.1-new/htdocs/webiopi.js	2016-04-02 11:52:10.477313815 +0900
 @@ -73,7 +73,7 @@
  	this.readyCallback = null;
  	this.context = "/";
@@ -19,9 +19,47 @@ diff -uNr WebIOPi-0.7.1_orig/htdocs/webiopi.js WebIOPi-0.7.1/htdocs/webiopi.js
  		var line = 	$('<tr>');
  		line.append(this.getFunctionCell(pin))
  		line.append(this.getDescriptionCell(pin, "right"))
-diff -uNr WebIOPi-0.7.1_orig/python/native/cpuinfo.c WebIOPi-0.7.1/python/native/cpuinfo.c
---- WebIOPi-0.7.1_orig/python/native/cpuinfo.c	2012-10-29 06:26:10.000000000 +0900
-+++ WebIOPi-0.7.1/python/native/cpuinfo.c	2015-05-08 15:37:17.824644443 +0900
+diff -uNr WebIOPi-0.7.1/python/native/bridge.c WebIOPi-0.7.1-new/python/native/bridge.c
+--- WebIOPi-0.7.1/python/native/bridge.c	2013-03-17 21:56:40.000000000 +0900
++++ WebIOPi-0.7.1-new/python/native/bridge.c	2016-04-07 18:06:01.211491561 +0900
+@@ -604,7 +604,7 @@
+ #if PY_MAJOR_VERSION > 2
+ static struct PyModuleDef python_module = {
+ 	PyModuleDef_HEAD_INIT,
+-	"_webiopi.GPIO", /* name of module */
++	"webiopi.GPIO", /* name of module */
+ 	NULL,       /* module documentation, may be NULL */
+ 	-1,         /* size of per-interpreter state of the module,
+ 				  or -1 if the module keeps state in global variables. */
+@@ -625,20 +625,20 @@
+ 	if ((module = PyModule_Create(&python_module)) == NULL)
+ 		goto exit;
+ #else
+-	if ((module = Py_InitModule("_webiopi.GPIO", python_methods)) == NULL)
++	if ((module = Py_InitModule("webiopi.GPIO", python_methods)) == NULL)
+ 		goto exit;
+ #endif
+ 
+-	_SetupException = PyErr_NewException("_webiopi.GPIO.SetupException", NULL, NULL);
++	_SetupException = PyErr_NewException("webiopi.GPIO.SetupException", NULL, NULL);
+ 	PyModule_AddObject(module, "SetupException", _SetupException);
+ 
+-	_InvalidDirectionException = PyErr_NewException("_webiopi.GPIO.InvalidDirectionException", NULL, NULL);
++	_InvalidDirectionException = PyErr_NewException("webiopi.GPIO.InvalidDirectionException", NULL, NULL);
+ 	PyModule_AddObject(module, "InvalidDirectionException", _InvalidDirectionException);
+ 
+-	_InvalidChannelException = PyErr_NewException("_webiopi.GPIO.InvalidChannelException", NULL, NULL);
++	_InvalidChannelException = PyErr_NewException("webiopi.GPIO.InvalidChannelException", NULL, NULL);
+ 	PyModule_AddObject(module, "InvalidChannelException", _InvalidChannelException);
+ 
+-	_InvalidPullException = PyErr_NewException("_webiopi.GPIO.InvalidPullException", NULL, NULL);
++	_InvalidPullException = PyErr_NewException("webiopi.GPIO.InvalidPullException", NULL, NULL);
+ 	PyModule_AddObject(module, "InvalidPullException", _InvalidPullException);
+ 
+ 	_gpioCount = Py_BuildValue("i", GPIO_COUNT);
+diff -uNr WebIOPi-0.7.1/python/native/cpuinfo.c WebIOPi-0.7.1-new/python/native/cpuinfo.c
+--- WebIOPi-0.7.1/python/native/cpuinfo.c	2012-10-29 06:26:10.000000000 +0900
++++ WebIOPi-0.7.1-new/python/native/cpuinfo.c	2016-04-02 11:52:10.477313815 +0900
 @@ -37,7 +37,7 @@
     while(!feof(fp)) {
        fgets(buffer, sizeof(buffer) , fp);
@@ -31,9 +69,9 @@ diff -uNr WebIOPi-0.7.1_orig/python/native/cpuinfo.c WebIOPi-0.7.1/python/native
           rpi_found = 1;
        sscanf(buffer, "Revision	: %s", revision);
     }
-diff -uNr WebIOPi-0.7.1_orig/python/native/gpio.c WebIOPi-0.7.1/python/native/gpio.c
---- WebIOPi-0.7.1_orig/python/native/gpio.c	2013-02-04 07:04:18.000000000 +0900
-+++ WebIOPi-0.7.1/python/native/gpio.c	2015-05-08 16:18:10.652343934 +0900
+diff -uNr WebIOPi-0.7.1/python/native/gpio.c WebIOPi-0.7.1-new/python/native/gpio.c
+--- WebIOPi-0.7.1/python/native/gpio.c	2013-02-04 07:04:18.000000000 +0900
++++ WebIOPi-0.7.1-new/python/native/gpio.c	2016-04-02 11:52:10.487313783 +0900
 @@ -20,6 +20,7 @@
  SOFTWARE.
  */
@@ -84,9 +122,87 @@ diff -uNr WebIOPi-0.7.1_orig/python/native/gpio.c WebIOPi-0.7.1/python/native/gp
  
      if ((uint32_t)gpio_map < 0)
          return SETUP_MMAP_FAIL;
-diff -uNr WebIOPi-0.7.1_orig/python/webiopi/utils/version.py WebIOPi-0.7.1/python/webiopi/utils/version.py
---- WebIOPi-0.7.1_orig/python/webiopi/utils/version.py	2015-02-05 05:21:44.000000000 +0900
-+++ WebIOPi-0.7.1/python/webiopi/utils/version.py	2015-05-08 15:59:30.801756684 +0900
+diff -uNr WebIOPi-0.7.1/python/setup.py WebIOPi-0.7.1-new/python/setup.py
+--- WebIOPi-0.7.1/python/setup.py	2015-02-05 05:21:44.000000000 +0900
++++ WebIOPi-0.7.1-new/python/setup.py	2016-04-07 19:19:38.856949458 +0900
+@@ -1,4 +1,4 @@
+-from setuptools import setup, Extension
++from distutils.core import setup, Extension
+ 
+ classifiers = ['Development Status :: 3 - Alpha',
+                'Operating System :: POSIX :: Linux',
+@@ -33,5 +33,5 @@
+                           "webiopi.devices.sensor",
+                           "webiopi.devices.shield"
+                           ],
+-      ext_modules      = [Extension('_webiopi.GPIO', ['native/bridge.c', 'native/gpio.c', 'native/cpuinfo.c'])],
++      ext_modules      = [Extension('webiopi.GPIO', ['native/bridge.c', 'native/gpio.c', 'native/cpuinfo.c'])],
+       )
+diff -uNr WebIOPi-0.7.1/python/webiopi/__init__.py WebIOPi-0.7.1-new/python/webiopi/__init__.py
+--- WebIOPi-0.7.1/python/webiopi/__init__.py	2014-01-29 08:13:34.000000000 +0900
++++ WebIOPi-0.7.1-new/python/webiopi/__init__.py	2016-04-07 18:03:22.331414560 +0900
+@@ -24,9 +24,8 @@
+ 
+ from webiopi.devices import bus as _bus
+ 
+-
+ try:
+-    import _webiopi.GPIO as GPIO
++    import webiopi.GPIO as GPIO
+ except:
+     pass
+ 
+diff -uNr WebIOPi-0.7.1/python/webiopi/devices/digital/gpio.py WebIOPi-0.7.1-new/python/webiopi/devices/digital/gpio.py
+--- WebIOPi-0.7.1/python/webiopi/devices/digital/gpio.py	2013-04-18 06:41:06.000000000 +0900
++++ WebIOPi-0.7.1-new/python/webiopi/devices/digital/gpio.py	2016-04-07 19:03:12.060353205 +0900
+@@ -17,7 +17,7 @@
+ from webiopi.devices.digital import GPIOPort
+ from webiopi.decorators.rest import request, response
+ try:
+-    import _webiopi.GPIO as GPIO
++    import webiopi.GPIO as GPIO
+ except:
+     pass
+ 
+diff -uNr WebIOPi-0.7.1/python/webiopi/protocols/coap.py WebIOPi-0.7.1-new/python/webiopi/protocols/coap.py
+--- WebIOPi-0.7.1/python/webiopi/protocols/coap.py	2014-02-01 00:45:33.000000000 +0900
++++ WebIOPi-0.7.1-new/python/webiopi/protocols/coap.py	2016-04-07 18:07:34.451535375 +0900
+@@ -29,7 +29,7 @@
+     from urlparse import urlparse
+ 
+ try :
+-    import _webiopi.GPIO as GPIO
++    import webiopi.GPIO as GPIO
+ except:
+     pass
+ 
+diff -uNr WebIOPi-0.7.1/python/webiopi/protocols/http.py WebIOPi-0.7.1-new/python/webiopi/protocols/http.py
+--- WebIOPi-0.7.1/python/webiopi/protocols/http.py	2014-02-22 07:31:18.000000000 +0900
++++ WebIOPi-0.7.1-new/python/webiopi/protocols/http.py	2016-04-07 18:02:08.271377631 +0900
+@@ -30,7 +30,7 @@
+     import BaseHTTPServer
+ 
+ try :
+-    import _webiopi.GPIO as GPIO
++    import webiopi.GPIO as GPIO
+ except:
+     pass
+ 
+diff -uNr WebIOPi-0.7.1/python/webiopi/protocols/rest.py WebIOPi-0.7.1-new/python/webiopi/protocols/rest.py
+--- WebIOPi-0.7.1/python/webiopi/protocols/rest.py	2013-04-18 06:41:06.000000000 +0900
++++ WebIOPi-0.7.1-new/python/webiopi/protocols/rest.py	2016-04-07 19:03:42.290606842 +0900
+@@ -21,7 +21,7 @@
+ from webiopi.devices.bus import BUSLIST
+ 
+ try:
+-    import _webiopi.GPIO as GPIO
++    import webiopi.GPIO as GPIO
+ except:
+     pass
+ 
+diff -uNr WebIOPi-0.7.1/python/webiopi/utils/version.py WebIOPi-0.7.1-new/python/webiopi/utils/version.py
+--- WebIOPi-0.7.1/python/webiopi/utils/version.py	2015-02-05 05:21:44.000000000 +0900
++++ WebIOPi-0.7.1-new/python/webiopi/utils/version.py	2016-04-02 11:52:10.487313783 +0900
 @@ -8,7 +8,8 @@
  
  _MAPPING = [[], [], []]
