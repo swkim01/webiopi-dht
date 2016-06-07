@@ -37,7 +37,7 @@ sudo setup.sh
 
 If you use raspbian jessie version, you have to copy systemctl service file about WebIOPi
 ```shell
-sudo cp webiopi.service /etc/systemd/system
+sudo cp webiopi.service /lib/systemd/system
 ```
 
 #### Test
