@@ -65,10 +65,28 @@ diff -uNr WebIOPi-0.7.1/python/native/cpuinfo.c WebIOPi-0.7.1-new/python/native/
        fgets(buffer, sizeof(buffer) , fp);
        sscanf(buffer, "Hardware	: %s", hardware);
 -      if (strcmp(hardware, "BCM2708") == 0)
-+      if (strcmp(hardware, "BCM2708") == 0 || strcmp(hardware, "BCM2709") == 0)
++      if (strcmp(hardware, "BCM2708") == 0 || strcmp(hardware, "BCM2709") == 0 || strcmp(hardware, "BCM2835") == 0)
           rpi_found = 1;
        sscanf(buffer, "Revision	: %s", revision);
     }
+@@ -60,6 +64,16 @@
+        (strcmp(revision, "0003") == 0) ||
+        (strcmp(revision, "1000003") == 0 ))
+       return 1;
+-   else // assume rev 2 (0004 0005 0006 1000004 1000005 1000006)
++   else if ((strcmp(revision, "0004") == 0) ||
++            (strcmp(revision, "1000004") == 0 ) ||
++            (strcmp(revision, "0005") == 0) ||
++            (strcmp(revision, "1000005") == 0 ) ||
++            (strcmp(revision, "0006") == 0) ||
++            (strcmp(revision, "1000006") == 0 ))
+       return 2;
++   else if ((strcmp(revision, "a01041") == 0) ||
++            (strcmp(revision, "a21041") == 0 ))
++      return 3;
++   else // assume rev 4
++      return 4;
+ }
 diff -uNr WebIOPi-0.7.1/python/native/gpio.c WebIOPi-0.7.1-new/python/native/gpio.c
 --- WebIOPi-0.7.1/python/native/gpio.c	2013-02-04 07:04:18.000000000 +0900
 +++ WebIOPi-0.7.1-new/python/native/gpio.c	2016-04-02 11:52:10.487313783 +0900
@@ -188,6 +206,34 @@ diff -uNr WebIOPi-0.7.1/python/webiopi/protocols/http.py WebIOPi-0.7.1-new/pytho
  except:
      pass
  
+@@ -194,13 +194,23 @@
+         
+         (contentType, encoding) = mime.guess_type(path)
+         f = codecs.open(path, encoding=encoding)
+-        data = f.read()
++        try:
++            data = f.read()
++        except UnicodeDecodeError:
++            f.close()
++            f = codecs.open(path, mode='rb', encoding=encoding)
++            data = f.read()
+         f.close()
+         self.send_response(200)
+         self.send_header("Content-Type", contentType);
+-        self.send_header("Content-Length", os.path.getsize(realPath))
+-        self.end_headers()
+-        self.wfile.write(data)
++        try:
++            self.send_header("Content-Length", len(data.encode()))
++            self.end_headers()
++            self.wfile.write(data.encode())
++        except AttributeError:
++            self.send_header("Content-Length", os.path.getsize(realPath))
++            self.end_headers()
++            self.wfile.write(data)
+         self.logRequest(200)
+         
+     def processRequest(self):
 diff -uNr WebIOPi-0.7.1/python/webiopi/protocols/rest.py WebIOPi-0.7.1-new/python/webiopi/protocols/rest.py
 --- WebIOPi-0.7.1/python/webiopi/protocols/rest.py	2013-04-18 06:41:06.000000000 +0900
 +++ WebIOPi-0.7.1-new/python/webiopi/protocols/rest.py	2016-04-07 19:03:42.290606842 +0900
