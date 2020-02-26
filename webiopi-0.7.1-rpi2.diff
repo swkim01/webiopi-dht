@@ -259,3 +259,50 @@ diff -uNr WebIOPi-0.7.1/python/webiopi/utils/version.py WebIOPi-0.7.1-new/python
  
  
  try:
+ @@ -6,9 +6,10 @@
+ PYTHON_MAJOR    = sys.version_info.major
+ BOARD_REVISION  = 0
+ 
+-_MAPPING = [[], [], []]
++_MAPPING = [[], [], [], []]
+ _MAPPING[1] = ["V33", "V50", 0, "V50", 1, "GND", 4, 14, "GND", 15, 17, 18, 21, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7]
+ _MAPPING[2] = ["V33", "V50", 2, "V50", 3, "GND", 4, 14, "GND", 15, 17, 18, 27, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7]
++_MAPPING[3] = ["V33", "V50", 2, "V50", 3, "GND", 4, 14, "GND", 15, 17, 18, 27, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7, "DNC", "DNC" , 5, "GND", 6, 12, 13, "GND", 19, 16, 26, 20, "GND", 21]
+ 
+ 
+ try:
+@@ -21,8 +22,13 @@
+             if hex_cpurev.startswith("1000"):
+                 hex_cpurev = hex_cpurev[-4:]
+             cpurev = int(hex_cpurev, 16)
+-            BOARD_REVISION = 1 if (cpurev < 4) else 2
+-        
++            if cpurev < 4:
++              BOARD_REVISION = 1
++            elif cpurev < 7:
++              BOARD_REVISION = 2
++            else:
++              BOARD_REVISION = 3
++
+ except:
+     pass
+ diff -uNr WebIOPi-0.7.1/python/webiopi/utils/thread.py WebIOPi-0.7.1-new/python/webiopi/utils/thread.py
+--- WebIOPi-0.7.1/python/webiopi/utils/thread.py	2013-04-18 06:41:06.000000000 +0900
++++ WebIOPi-Pi2/python/webiopi/utils/thread.py	2019-06-25 00:48:56.953709736 +0900
+@@ -33,14 +33,14 @@
+             task.stop()
+                 
+ 
+-def runLoop(func=None, async=False):
++def runLoop(func=None, l_async=False):
+     global RUNNING
+     RUNNING = True
+     signal.signal(signal.SIGINT, stop)
+     signal.signal(signal.SIGTERM, stop)
+ 
+     if func != None:
+-        if async:
++        if l_async:
+             TASKS.append(Task(func, True))
+         else:
+             while RUNNING:
