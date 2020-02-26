@@ -212,7 +212,7 @@ diff -uNr WebIOPi-0.7.1/python/webiopi/protocols/http.py WebIOPi-0.7.1-new/pytho
          f = codecs.open(path, encoding=encoding)
 -        data = f.read()
 +        try:
-+            data = f.read()
++            data = f.read().encode()
 +        except UnicodeDecodeError:
 +            f.close()
 +            f = codecs.open(path, mode='rb', encoding=encoding)
