@@ -1,0 +1,420 @@
+diff -uNr WebIOPi-0.7.1/htdocs/webiopi.js WebIOPi-0.7.1-new/htdocs/webiopi.js
+--- WebIOPi-0.7.1/htdocs/webiopi.js	2014-02-23 16:37:07.000000000 +0000
++++ WebIOPi-0.7.1-new/htdocs/webiopi.js	2020-02-26 06:11:20.832730807 +0000
+@@ -73,7 +73,7 @@
+ 	this.readyCallback = null;
+ 	this.context = "/";
+ 	this.GPIO = Array(54);
+-	this.PINS = Array(27);
++	this.PINS = Array(41);
+ 
+ 	this.TYPE = {
+ 			DNC: {value: 0, style: "DNC", label: "--"},
+@@ -577,7 +577,7 @@
+ RPiHeader.prototype.createTable = function (containerId) {
+ 	var table = $("<table>");
+ 	table.attr("id", "RPiHeader")
+-	for (var pin=1; pin<=26; pin++) {
++	for (var pin=1; pin<=40; pin++) {
+ 		var line = 	$('<tr>');
+ 		line.append(this.getFunctionCell(pin))
+ 		line.append(this.getDescriptionCell(pin, "right"))
+diff -uNr WebIOPi-0.7.1/python/native/bridge.c WebIOPi-0.7.1-new/python/native/bridge.c
+--- WebIOPi-0.7.1/python/native/bridge.c	2013-03-17 12:56:40.000000000 +0000
++++ WebIOPi-0.7.1-new/python/native/bridge.c	2020-02-26 06:10:49.523272267 +0000
+@@ -604,7 +604,7 @@
+ #if PY_MAJOR_VERSION > 2
+ static struct PyModuleDef python_module = {
+ 	PyModuleDef_HEAD_INIT,
+-	"_webiopi.GPIO", /* name of module */
++	"webiopi.GPIO", /* name of module */
+ 	NULL,       /* module documentation, may be NULL */
+ 	-1,         /* size of per-interpreter state of the module,
+ 				  or -1 if the module keeps state in global variables. */
+@@ -625,20 +625,20 @@
+ 	if ((module = PyModule_Create(&python_module)) == NULL)
+ 		goto exit;
+ #else
+-	if ((module = Py_InitModule("_webiopi.GPIO", python_methods)) == NULL)
++	if ((module = Py_InitModule("webiopi.GPIO", python_methods)) == NULL)
+ 		goto exit;
+ #endif
+ 
+-	_SetupException = PyErr_NewException("_webiopi.GPIO.SetupException", NULL, NULL);
++	_SetupException = PyErr_NewException("webiopi.GPIO.SetupException", NULL, NULL);
+ 	PyModule_AddObject(module, "SetupException", _SetupException);
+ 
+-	_InvalidDirectionException = PyErr_NewException("_webiopi.GPIO.InvalidDirectionException", NULL, NULL);
++	_InvalidDirectionException = PyErr_NewException("webiopi.GPIO.InvalidDirectionException", NULL, NULL);
+ 	PyModule_AddObject(module, "InvalidDirectionException", _InvalidDirectionException);
+ 
+-	_InvalidChannelException = PyErr_NewException("_webiopi.GPIO.InvalidChannelException", NULL, NULL);
++	_InvalidChannelException = PyErr_NewException("webiopi.GPIO.InvalidChannelException", NULL, NULL);
+ 	PyModule_AddObject(module, "InvalidChannelException", _InvalidChannelException);
+ 
+-	_InvalidPullException = PyErr_NewException("_webiopi.GPIO.InvalidPullException", NULL, NULL);
++	_InvalidPullException = PyErr_NewException("webiopi.GPIO.InvalidPullException", NULL, NULL);
+ 	PyModule_AddObject(module, "InvalidPullException", _InvalidPullException);
+ 
+ 	_gpioCount = Py_BuildValue("i", GPIO_COUNT);
+diff -uNr WebIOPi-0.7.1/python/native/cpuinfo.c WebIOPi-0.7.1-new/python/native/cpuinfo.c
+--- WebIOPi-0.7.1/python/native/cpuinfo.c	2012-10-28 21:26:10.000000000 +0000
++++ WebIOPi-0.7.1-new/python/native/cpuinfo.c	2020-02-26 06:10:49.523272267 +0000
+@@ -37,7 +37,7 @@
+    while(!feof(fp)) {
+       fgets(buffer, sizeof(buffer) , fp);
+       sscanf(buffer, "Hardware	: %s", hardware);
+-      if (strcmp(hardware, "BCM2708") == 0)
++      if (strcmp(hardware, "BCM2708") == 0 || strcmp(hardware, "BCM2709") == 0 || strcmp(hardware, "BCM2835") == 0 || strcmp(hardware, "BCM2711") == 0)
+          rpi_found = 1;
+       sscanf(buffer, "Revision	: %s", revision);
+    }
+@@ -60,6 +60,16 @@
+        (strcmp(revision, "0003") == 0) ||
+        (strcmp(revision, "1000003") == 0 ))
+       return 1;
+-   else // assume rev 2 (0004 0005 0006 1000004 1000005 1000006)
++   else if ((strcmp(revision, "0004") == 0) ||
++            (strcmp(revision, "1000004") == 0 ) ||
++            (strcmp(revision, "0005") == 0) ||
++            (strcmp(revision, "1000005") == 0 ) ||
++            (strcmp(revision, "0006") == 0) ||
++            (strcmp(revision, "1000006") == 0 ))
+       return 2;
++   else if ((strcmp(revision, "a01041") == 0) ||
++            (strcmp(revision, "a21041") == 0 ))
++      return 3;
++   else // assume rev 4
++      return 4;
+ }
+diff -uNr WebIOPi-0.7.1/python/native/gpio.c WebIOPi-0.7.1-new/python/native/gpio.c
+--- WebIOPi-0.7.1/python/native/gpio.c	2013-02-03 22:04:18.000000000 +0000
++++ WebIOPi-0.7.1-new/python/native/gpio.c	2020-03-11 04:41:37.542889301 +0000
+@@ -20,6 +20,7 @@
+ SOFTWARE.
+ */
+ 
++#include <stdio.h>
+ #include <stdint.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -28,9 +29,8 @@
+ #include <time.h>
+ #include <pthread.h>
+ #include "gpio.h"
++#include "cpuinfo.h"
+ 
+-#define BCM2708_PERI_BASE   0x20000000
+-#define GPIO_BASE           (BCM2708_PERI_BASE + 0x200000)
+ #define FSEL_OFFSET         0   // 0x0000
+ #define SET_OFFSET          7   // 0x001c / 4
+ #define CLR_OFFSET          10  // 0x0028 / 4
+@@ -43,6 +43,11 @@
+ #define PULLUPDN_OFFSET     37  // 0x0094 / 4
+ #define PULLUPDNCLK_OFFSET  38  // 0x0098 / 4
+ 
++#define PULLUPDN_OFFSET_2711_0      57
++#define PULLUPDN_OFFSET_2711_1      58
++#define PULLUPDN_OFFSET_2711_2      59
++#define PULLUPDN_OFFSET_2711_3      60
++
+ #define PAGE_SIZE  (4*1024)
+ #define BLOCK_SIZE (4*1024)
+ 
+@@ -83,7 +88,31 @@
+     if ((uint32_t)gpio_mem % PAGE_SIZE)
+         gpio_mem += PAGE_SIZE - ((uint32_t)gpio_mem % PAGE_SIZE);
+ 
+-    gpio_map = (uint32_t *)mmap( (caddr_t)gpio_mem, BLOCK_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, mem_fd, GPIO_BASE);
++    char buffer[12];
++    const char *ranges_file = "/proc/device-tree/soc/ranges";
++    int info_fd = open(ranges_file, O_RDONLY);
++
++    if (info_fd < 0) {
++        fprintf(stderr, "cannot open: %s", ranges_file);
++        return SETUP_MMAP_FAIL;
++    }
++
++    ssize_t n = read(info_fd, buffer, sizeof(buffer));
++    close(info_fd);
++
++    if (n < 8) {
++        fprintf(stderr, "cannot read base address: %s", ranges_file);
++        return SETUP_MMAP_FAIL;
++    }
++
++    uint32_t gpio_offset = 0x00200000;
++    uint32_t gpio_base =  (buffer[4] << 24) + (buffer[5] << 16) + (buffer[6] << 8) + (buffer[7] << 0) + gpio_offset;
++
++    if (gpio_base == gpio_offset) {
++        gpio_base =  (buffer[8] << 24) + (buffer[9] << 16) + (buffer[10] << 8) + (buffer[11] << 0) + gpio_offset;
++    }
++
++    gpio_map = (uint32_t *)mmap( (caddr_t)gpio_mem, BLOCK_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_FIXED, mem_fd, gpio_base);
+ 
+     if ((uint32_t)gpio_map < 0)
+         return SETUP_MMAP_FAIL;
+@@ -93,21 +122,44 @@
+ 
+ void set_pullupdn(int gpio, int pud)
+ {
+-    int clk_offset = PULLUPDNCLK_OFFSET + (gpio/32);
+-    int shift = (gpio%32);
+-    
+-    if (pud == PUD_DOWN)
+-       *(gpio_map+PULLUPDN_OFFSET) = (*(gpio_map+PULLUPDN_OFFSET) & ~3) | PUD_DOWN;
+-    else if (pud == PUD_UP)
+-       *(gpio_map+PULLUPDN_OFFSET) = (*(gpio_map+PULLUPDN_OFFSET) & ~3) | PUD_UP;
+-    else  // pud == PUD_OFF
+-       *(gpio_map+PULLUPDN_OFFSET) &= ~3;
+-    
+-    short_wait();
+-    *(gpio_map+clk_offset) = 1 << shift;
+-    short_wait();
+-    *(gpio_map+PULLUPDN_OFFSET) &= ~3;
+-    *(gpio_map+clk_offset) = 0;
++    // Check GPIO register
++    int is2711 = *(gpio_map+PULLUPDN_OFFSET_2711_3) != 0x6770696f;
++    if (is2711) {
++        // Pi 4 Pull-up/down method
++       int pullreg = PULLUPDN_OFFSET_2711_0 + (gpio >> 4);
++       int pullshift = (gpio & 0xf) << 1;
++       unsigned int pullbits;
++       unsigned int pull = 0;
++       if (pud == PUD_DOWN){
++           pull = 2;
++        } else
++        if (pud == PUD_UP){
++           pull = 1;
++        }
++        pullbits = *(gpio_map + pullreg);
++        pullbits &= ~(3 << pullshift);
++        pullbits |= (pull << pullshift);
++        *(gpio_map + pullreg) = pullbits;
++    }
++    else
++    {
++        // Legacy Pull-up/down method
++        int clk_offset = PULLUPDNCLK_OFFSET + (gpio/32);
++        int shift = (gpio%32);
++
++        if (pud == PUD_DOWN)
++            *(gpio_map+PULLUPDN_OFFSET) = (*(gpio_map+PULLUPDN_OFFSET) & ~3) | PUD_DOWN;
++        else if (pud == PUD_UP)
++            *(gpio_map+PULLUPDN_OFFSET) = (*(gpio_map+PULLUPDN_OFFSET) & ~3) | PUD_UP;
++        else  // pud == PUD_OFF
++            *(gpio_map+PULLUPDN_OFFSET) &= ~3;
++
++        short_wait();
++        *(gpio_map+clk_offset) = 1 << shift;
++        short_wait();
++        *(gpio_map+PULLUPDN_OFFSET) &= ~3;
++        *(gpio_map+clk_offset) = 0;
++    }
+ }
+ 
+ //updated Eric PTAK - trouch.com
+diff -uNr WebIOPi-0.7.1/python/setup.py WebIOPi-0.7.1-new/python/setup.py
+--- WebIOPi-0.7.1/python/setup.py	2015-02-04 20:21:44.000000000 +0000
++++ WebIOPi-0.7.1-new/python/setup.py	2020-02-26 06:10:49.523272267 +0000
+@@ -1,4 +1,4 @@
+-from setuptools import setup, Extension
++from distutils.core import setup, Extension
+ 
+ classifiers = ['Development Status :: 3 - Alpha',
+                'Operating System :: POSIX :: Linux',
+@@ -33,5 +33,5 @@
+                           "webiopi.devices.sensor",
+                           "webiopi.devices.shield"
+                           ],
+-      ext_modules      = [Extension('_webiopi.GPIO', ['native/bridge.c', 'native/gpio.c', 'native/cpuinfo.c'])],
++      ext_modules      = [Extension('webiopi.GPIO', ['native/bridge.c', 'native/gpio.c', 'native/cpuinfo.c'])],
+       )
+diff -uNr WebIOPi-0.7.1/python/webiopi/__init__.py WebIOPi-0.7.1-new/python/webiopi/__init__.py
+--- WebIOPi-0.7.1/python/webiopi/__init__.py	2014-01-28 23:13:34.000000000 +0000
++++ WebIOPi-0.7.1-new/python/webiopi/__init__.py	2020-02-26 06:10:49.523272267 +0000
+@@ -24,9 +24,8 @@
+ 
+ from webiopi.devices import bus as _bus
+ 
+-
+ try:
+-    import _webiopi.GPIO as GPIO
++    import webiopi.GPIO as GPIO
+ except:
+     pass
+ 
+diff -uNr WebIOPi-0.7.1/python/webiopi/devices/digital/gpio.py WebIOPi-0.7.1-new/python/webiopi/devices/digital/gpio.py
+--- WebIOPi-0.7.1/python/webiopi/devices/digital/gpio.py	2013-04-17 22:41:06.000000000 +0100
++++ WebIOPi-0.7.1-new/python/webiopi/devices/digital/gpio.py	2020-02-26 06:10:49.523272267 +0000
+@@ -17,7 +17,7 @@
+ from webiopi.devices.digital import GPIOPort
+ from webiopi.decorators.rest import request, response
+ try:
+-    import _webiopi.GPIO as GPIO
++    import webiopi.GPIO as GPIO
+ except:
+     pass
+ 
+diff -uNr WebIOPi-0.7.1/python/webiopi/devices/sensor/__init__.py WebIOPi-0.7.1-new/python/webiopi/devices/sensor/__init__.py
+--- WebIOPi-0.7.1/python/webiopi/devices/sensor/__init__.py	2014-02-22 06:50:48.000000000 +0900
++++ WebIOPi-0.7.1-new/python/webiopi/devices/sensor/__init__.py	2016-04-02 11:52:59.557155219 +0900
+@@ -193,4 +193,5 @@
+ DRIVERS["tslXXXX"] = ["TSL2561", "TSL2561CS", "TSL2561T", "TSL4531", "TSL45311", "TSL45313", "TSL45315", "TSL45317"]
+ DRIVERS["vcnl4000"] = ["VCNL4000"]
+ DRIVERS["hytXXX"] = ["HYT221"]
++DRIVERS["dhtXX"] = ["DHT11", "DHT22", "AM2302"]
+ 
+diff -uNr WebIOPi-0.7.1/python/webiopi/devices/sensor/dhtXX.py WebIOPi-0.7.1-new/python/webiopi/devices/sensor/dhtXX.py
+--- WebIOPi-0.7.1/python/webiopi/devices/sensor/dhtXX.py	1970-01-01 09:00:00.000000000 +0900
++++ WebIOPi-0.7.1-new/python/webiopi/devices/sensor/dhtXX.py	2016-04-02 11:52:59.557155219 +0900
+@@ -0,0 +1,52 @@
++from time import sleep
++from webiopi.utils.types import toint
++import Adafruit_DHT
++from webiopi.devices.sensor import Temperature,Humidity
++
++class DHT11(Temperature, Humidity):
++    VAL_RETRIES = 5
++    sensor = Adafruit_DHT.DHT11
++    pin = 4
++
++    def __init__(self, pin="4"):
++        self.pin = toint(pin)
++        pass
++
++    def __str__(self):
++        return "DHT11(pin=%02d)" % self.pin
++
++    def __family__(self):
++        return [Temperature.__family__(self), Humidity.__family__(self)]
++
++    def readRawData(self):
++        for i in range(self.VAL_RETRIES):
++            raw_h, raw_t = Adafruit_DHT.read_retry(self.sensor, self.pin)
++            if raw_h is not None and raw_t is not None:
++                return (raw_t, raw_h/100)
++
++        #Stale was never 0, so datas are not actual
++        raise Exception("DHT11(pin=%02d): data fetch timeout" % self.pin)
++
++    def __getCelsius__(self):
++        (raw_t, raw_h) = self.readRawData()
++        return raw_t
++
++    def __getFahrenheit__(self):
++        return self.Celsius2Fahrenheit()
++
++    def __getKelvin__(self):
++        return self.Celsius2Kelvin()
++
++    def __getHumidity__(self):
++        (raw_t, raw_h) = self.readRawData()
++        return raw_h
++
++class DHT22(DHT11):
++    def __init__(self, pin=4):
++        DHT11.__init__(self, pin)
++        self.sensor = Adafruit_DHT.DHT22
++
++class AM2302(DHT11):
++    def __init__(self, pin=4):
++        DHT11.__init__(self, pin)
++        self.sensor = Adafruit_DHT.AM2302
+diff -uNr WebIOPi-0.7.1/python/webiopi/protocols/coap.py WebIOPi-0.7.1-new/python/webiopi/protocols/coap.py
+--- WebIOPi-0.7.1/python/webiopi/protocols/coap.py	2014-01-31 15:45:33.000000000 +0000
++++ WebIOPi-0.7.1-new/python/webiopi/protocols/coap.py	2020-02-26 06:10:49.523272267 +0000
+@@ -29,7 +29,7 @@
+     from urlparse import urlparse
+ 
+ try :
+-    import _webiopi.GPIO as GPIO
++    import webiopi.GPIO as GPIO
+ except:
+     pass
+ 
+diff -uNr WebIOPi-0.7.1/python/webiopi/protocols/http.py WebIOPi-0.7.1-new/python/webiopi/protocols/http.py
+--- WebIOPi-0.7.1/python/webiopi/protocols/http.py	2014-02-21 22:31:18.000000000 +0000
++++ WebIOPi-0.7.1-new/python/webiopi/protocols/http.py	2020-02-26 06:10:49.533272094 +0000
+@@ -30,7 +30,7 @@
+     import BaseHTTPServer
+ 
+ try :
+-    import _webiopi.GPIO as GPIO
++    import webiopi.GPIO as GPIO
+ except:
+     pass
+ 
+@@ -194,13 +194,23 @@
+         
+         (contentType, encoding) = mime.guess_type(path)
+         f = codecs.open(path, encoding=encoding)
+-        data = f.read()
++        try:
++            data = f.read()
++        except UnicodeDecodeError:
++            f.close()
++            f = codecs.open(path, mode='rb', encoding=encoding)
++            data = f.read()
+         f.close()
+         self.send_response(200)
+         self.send_header("Content-Type", contentType);
+-        self.send_header("Content-Length", os.path.getsize(realPath))
+-        self.end_headers()
+-        self.wfile.write(data)
++        try:
++            self.send_header("Content-Length", len(data.encode()))
++            self.end_headers()
++            self.wfile.write(data.encode())
++        except AttributeError:
++            self.send_header("Content-Length", os.path.getsize(realPath))
++            self.end_headers()
++            self.wfile.write(data)
+         self.logRequest(200)
+         
+     def processRequest(self):
+diff -uNr WebIOPi-0.7.1/python/webiopi/protocols/rest.py WebIOPi-0.7.1-new/python/webiopi/protocols/rest.py
+--- WebIOPi-0.7.1/python/webiopi/protocols/rest.py	2013-04-17 22:41:06.000000000 +0100
++++ WebIOPi-0.7.1-new/python/webiopi/protocols/rest.py	2020-02-26 06:10:49.533272094 +0000
+@@ -21,7 +21,7 @@
+ from webiopi.devices.bus import BUSLIST
+ 
+ try:
+-    import _webiopi.GPIO as GPIO
++    import webiopi.GPIO as GPIO
+ except:
+     pass
+ 
+diff -uNr WebIOPi-0.7.1/python/webiopi/utils/thread.py WebIOPi-0.7.1-new/python/webiopi/utils/thread.py
+--- WebIOPi-0.7.1/python/webiopi/utils/thread.py	2013-04-17 22:41:06.000000000 +0100
++++ WebIOPi-0.7.1-new/python/webiopi/utils/thread.py	2020-02-26 06:10:49.533272094 +0000
+@@ -33,14 +33,14 @@
+             task.stop()
+                 
+ 
+-def runLoop(func=None, async=False):
++def runLoop(func=None, l_async=False):
+     global RUNNING
+     RUNNING = True
+     signal.signal(signal.SIGINT, stop)
+     signal.signal(signal.SIGTERM, stop)
+ 
+     if func != None:
+-        if async:
++        if l_async:
+             TASKS.append(Task(func, True))
+         else:
+             while RUNNING:
+diff -uNr WebIOPi-0.7.1/python/webiopi/utils/version.py WebIOPi-0.7.1-new/python/webiopi/utils/version.py
+--- WebIOPi-0.7.1/python/webiopi/utils/version.py	2015-02-04 20:21:44.000000000 +0000
++++ WebIOPi-0.7.1-new/python/webiopi/utils/version.py	2020-02-26 06:10:49.533272094 +0000
+@@ -8,7 +8,8 @@
+ 
+ _MAPPING = [[], [], []]
+ _MAPPING[1] = ["V33", "V50", 0, "V50", 1, "GND", 4, 14, "GND", 15, 17, 18, 21, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7]
+-_MAPPING[2] = ["V33", "V50", 2, "V50", 3, "GND", 4, 14, "GND", 15, 17, 18, 27, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7]
++#_MAPPING[2] = ["V33", "V50", 2, "V50", 3, "GND", 4, 14, "GND", 15, 17, 18, 27, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7]
++_MAPPING[2] = ["V33", "V50", 2, "V50", 3, "GND", 4, 14, "GND", 15, 17, 18, 27, "GND", 22, 23, "V33", 24, 10, "GND", 9, 25, 11, 8, "GND", 7, "DNC", "DNC", 5, "GND", 6, 12, 13, "GND", 19, 16, 26, 20, "GND", 21]
+ 
+ 
+ try:
