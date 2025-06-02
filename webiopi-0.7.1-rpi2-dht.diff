@@ -60,7 +60,15 @@ diff -uNr WebIOPi-0.7.1/python/native/bridge.c WebIOPi-0.7.1-new/python/native/b
 diff -uNr WebIOPi-0.7.1/python/native/cpuinfo.c WebIOPi-0.7.1-new/python/native/cpuinfo.c
 --- WebIOPi-0.7.1/python/native/cpuinfo.c	2012-10-28 21:26:10.000000000 +0000
 +++ WebIOPi-0.7.1-new/python/native/cpuinfo.c	2020-02-26 06:10:49.523272267 +0000
-@@ -37,7 +37,7 @@
+@@ -29,6 +29,7 @@
+    FILE *fp;
+    char buffer[1024];
+    char hardware[1024];
++   char model[1024];
+    int  rpi_found = 0;
+ 
+    if ((fp = fopen("/proc/cpuinfo", "r")) == NULL)
+@@ -37,9 +38,12 @@
     while(!feof(fp)) {
        fgets(buffer, sizeof(buffer) , fp);
        sscanf(buffer, "Hardware	: %s", hardware);
@@ -68,8 +76,13 @@ diff -uNr WebIOPi-0.7.1/python/native/cpuinfo.c WebIOPi-0.7.1-new/python/native/
 +      if (strcmp(hardware, "BCM2708") == 0 || strcmp(hardware, "BCM2709") == 0 || strcmp(hardware, "BCM2835") == 0 || strcmp(hardware, "BCM2711") == 0)
           rpi_found = 1;
        sscanf(buffer, "Revision	: %s", revision);
++      sscanf(buffer, "Model	: %s", model);
++      if (strstr(model, "Raspberry") > 0)
++         rpi_found = 1;
     }
-@@ -60,6 +60,16 @@
+    fclose(fp);
+ 
+@@ -60,6 +64,16 @@
         (strcmp(revision, "0003") == 0) ||
         (strcmp(revision, "1000003") == 0 ))
        return 1;
